@@ -11,19 +11,86 @@ function App() {
   const [ipAddress, setIpAddress] = useState(null)
   const [ipError, setIpError] = useState(null)
 
-  // Function to get IP address
+  // Function to get IP address with multiple fallback APIs
   const getIpAddress = async () => {
+    // First try our own server endpoint (most reliable)
     try {
-      const response = await fetch('https://api.ipify.org?format=json')
-      const data = await response.json()
-      setIpAddress(data.ip)
-      console.log('IP Address:', data.ip)
-      return data.ip
+      console.log('Trying server endpoint...')
+      const response = await fetch('/api/get-ip')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.ip) {
+          setIpAddress(data.ip)
+          console.log('IP Address (server):', data.ip)
+          return data.ip
+        }
+      }
     } catch (error) {
-      console.error('Error fetching IP address:', error)
-      setIpError('Failed to fetch IP address')
-      return null
+      console.error('Server endpoint failed:', error)
     }
+
+    // Fallback to external APIs
+    const ipApis = [
+      'https://api.ipify.org?format=json',
+      'https://api64.ipify.org?format=json',
+      'https://api.myip.com',
+      'https://ipapi.co/json/',
+      'https://ipinfo.io/json'
+    ]
+
+    for (const api of ipApis) {
+      try {
+        console.log(`Trying IP API: ${api}`)
+        const response = await fetch(api, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          mode: 'cors'
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        let ip = null
+        
+        // Handle different API response formats
+        if (data.ip) {
+          ip = data.ip
+        } else if (data.query) {
+          ip = data.query
+        } else if (data.ipAddress) {
+          ip = data.ipAddress
+        }
+        
+        if (ip) {
+          setIpAddress(ip)
+          console.log('IP Address (external):', ip)
+          return ip
+        }
+      } catch (error) {
+        console.error(`Error with API ${api}:`, error)
+        continue
+      }
+    }
+    
+    // Last resort: try httpbin
+    try {
+      const response = await fetch('https://httpbin.org/ip')
+      const data = await response.json()
+      if (data.origin) {
+        setIpAddress(data.origin)
+        console.log('IP Address (httpbin):', data.origin)
+        return data.origin
+      }
+    } catch (error) {
+      console.error('Error with httpbin:', error)
+    }
+    
+    setIpError('Failed to fetch IP address from all sources')
+    return null
   }
 
   // Function to save location to Firestore
@@ -36,7 +103,13 @@ function App() {
         longitude: locationData.longitude,
         accuracy: locationData.accuracy,
         timestamp: locationData.timestamp,
-        ipAddress: ipAddress, // Include IP address in the document
+        ipAddress: ipAddress,
+        userAgent: navigator.userAgent,
+        pageUrl: window.location.href,
+        referrer: document.referrer,
+        screenResolution: `${screen.width}x${screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        language: navigator.language,
         createdAt: serverTimestamp()
       }
 
