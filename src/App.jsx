@@ -10,6 +10,23 @@ function App() {
   const [location, setLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
   const [firestoreStatus, setFirestoreStatus] = useState('')
+  const [ipAddress, setIpAddress] = useState(null)
+  const [ipError, setIpError] = useState(null)
+
+  // Function to get IP address
+  const getIpAddress = async () => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json')
+      const data = await response.json()
+      setIpAddress(data.ip)
+      console.log('IP Address:', data.ip)
+      return data.ip
+    } catch (error) {
+      console.error('Error fetching IP address:', error)
+      setIpError('Failed to fetch IP address')
+      return null
+    }
+  }
 
   // Function to save location to Firestore
   const saveLocationToFirestore = async (locationData) => {
@@ -21,6 +38,7 @@ function App() {
         longitude: locationData.longitude,
         accuracy: locationData.accuracy,
         timestamp: locationData.timestamp,
+        ipAddress: ipAddress, // Include IP address in the document
         createdAt: serverTimestamp()
       }
 
@@ -37,6 +55,9 @@ function App() {
   }
 
   useEffect(() => {
+    // Get IP address when component mounts
+    getIpAddress()
+
     // Check if geolocation is supported
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by this browser.')
