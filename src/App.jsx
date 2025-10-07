@@ -184,7 +184,8 @@ function App() {
       try {
         navigator.permissions.query({ name: 'geolocation' }).then((result) => {
           setPermissionState(result.state)
-          if (result.state === 'granted') {
+          // Always trigger a prompt at first load when possible
+          if (result.state === 'granted' || result.state === 'prompt') {
             requestLocation()
           }
           result.onchange = () => {
